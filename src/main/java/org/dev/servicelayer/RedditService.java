@@ -3,7 +3,6 @@ package org.dev.servicelayer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.dev.Entity.RedditPostresponse;
-
 import java.io.IOException;
 
 @ApplicationScoped
