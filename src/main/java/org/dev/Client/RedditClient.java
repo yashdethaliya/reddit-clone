@@ -2,7 +2,6 @@ package org.dev.Client;
 
 
 import jakarta.ws.rs.*;
-import org.dev.Entity.RedditPostresponse;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 
 import java.security.Key;
