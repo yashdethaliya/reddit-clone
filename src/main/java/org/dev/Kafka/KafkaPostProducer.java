@@ -33,7 +33,6 @@ public class KafkaPostProducer {
                     try {
                         String jsonPost = new ObjectMapper().writeValueAsString(child.getData());
                         producer.send(new ProducerRecord<>(TOPIC, null, jsonPost));
-                        System.out.println("Sent post to Kafka: " + jsonPost);
                     } catch (Exception e) {
                         System.err.println("Error sending post to Kafka: " + e.getMessage());
                     }
