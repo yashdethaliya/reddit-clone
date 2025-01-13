@@ -1,21 +1,29 @@
 package org.dev.resource;
 
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Request;
 import org.dev.Client.RedditClient;
-import org.dev.Entity.RedditPostresponse;
-import org.dev.Entity.RedditResponse;
+import org.dev.Entity.*;
 import org.dev.Kafka.KafkaPostProducer;
+import org.dev.OpenSeacrh.OpenSearchClient;
+import org.dev.OpenSeacrh.OpenSearchsearchservice;
 import org.dev.servicelayer.RedditService;
 import org.dev.tokengenerator.Tokengenerator;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
-@Path("/author-posts-api")
+@Path("/")
 public class RedditResource {
 
     @Inject
@@ -24,22 +32,90 @@ public class RedditResource {
             @RestClient
     RedditClient redditClient;
     @Inject
+    OpenSearchsearchservice openSearchClient;
+    @Inject
     RedditService redditService;
     @Inject
     Tokengenerator tokenfetch;
     @GET
-    @Path("/{username}")
+    @Path("author-posts-api/{username}")
     @Produces(MediaType.APPLICATION_JSON)
     public CompletableFuture<RedditPostresponse> getPostbyAuthorName(@PathParam("username") String username, @QueryParam("limit") int limit)
     {
         return CompletableFuture.supplyAsync(() -> {
             String token = "Bearer " + tokenfetch.getToken();
-            String res = redditClient.getPostsByUser(username, limit, token);
-            RedditPostresponse response = redditService.parseRedditResponse(res);
-            kafkaPostProducer.sendPostsToKafka(response);
+            String after = null;
+            RedditPostresponse allPosts = new RedditPostresponse();
+            RedditData allData = new RedditData();
+            allPosts.setKind("Listing");
+            int curnumofpost=0;
+            do {
+                String res = redditClient.getPostsByUser(username, limit, after, token);
 
-            return response;
+                RedditPostresponse response = redditService.parseRedditResponse(res);
+
+                if (response.getData() != null) {
+                    int postsToAdd = response.getData().getChildren().size();
+                    if (curnumofpost + postsToAdd > limit) {
+                        // If adding would exceed the limit, only add the remaining posts to reach the limit
+                        postsToAdd = limit - curnumofpost;
+                    }
+                    allData.getChildren().addAll(response.getData().getChildren().subList(0,postsToAdd));
+                    curnumofpost += postsToAdd;
+                    if(curnumofpost>limit)break;
+                }
+                after = response.getData().getAfter();
+            } while (after != null && curnumofpost<=limit);
+            allPosts.setData(allData);
+            kafkaPostProducer.sendPostsToKafka(allPosts);
+            return allPosts;
+
         });
     }
+
+    @GET
+    @Path("posts-by-keyword/{keyval}")
+    public List<RedditResponseWrapper> getPostbyKeywords(@PathParam("keyval") String keyval,@QueryParam("value") String value,@QueryParam("limit") int limit) throws IOException {
+        String res=openSearchClient.searchbykeyword("reddit-posts-index",keyval,value,limit);
+        if(!res.contains("Index Not Found"))
+        {
+            ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode rootNode = objectMapper.readTree(res);
+            JsonNode hitsNode = rootNode.path("hits").path("hits");
+            List<RedditResponseWrapper> redditPosts = new ArrayList<>();
+            for (JsonNode hit : hitsNode) {
+                RedditResponseWrapper wrapper = new RedditResponseWrapper();
+
+                wrapper.set_index(hit.path("_index").asText());
+                wrapper.set_id(hit.path("_id").asText());
+                wrapper.set_score(hit.path("_score").asDouble());
+
+                JsonNode sourceNode = hit.path("_source");
+                RedditResponse post = new RedditResponse();
+
+                post.setTitle(sourceNode.path("title").asText());
+                post.setUrl(sourceNode.path("url").asText());
+                post.setAuthor(sourceNode.path("author").asText());
+                post.setScore(sourceNode.path("score").asInt());
+                post.setCreatedUtc(sourceNode.path("created_utc").asLong());
+                post.setAuthorFullname(sourceNode.path("author_fullname").asText());
+                post.setSubreddit(sourceNode.path("subreddit").asText());
+                post.setSelftext(sourceNode.path("selftext").asText());
+                post.setThumbnail(sourceNode.path("thumbnail").asText());
+
+                wrapper.setRedditResponse(post);
+
+                redditPosts.add(wrapper);
+            }
+            return redditPosts;
+        }
+        else {
+            List<RedditResponseWrapper> blank_res=new ArrayList<>();
+            return blank_res;
+
+        }
+
+    }
+
 
 }
