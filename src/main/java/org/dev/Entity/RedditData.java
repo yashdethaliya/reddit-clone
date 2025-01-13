@@ -3,6 +3,7 @@ package org.dev.Entity;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -20,6 +21,9 @@ public class RedditData {
     private String modhash;
 
     public List<RedditChildren> getChildren() {
+        if (children == null) {
+            children = new ArrayList<>();  // Initialize if it's null
+        }
         return children;
     }
 
