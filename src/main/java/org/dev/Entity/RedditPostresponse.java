@@ -1,5 +1,6 @@
 package org.dev.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -28,9 +29,11 @@ public class RedditPostresponse {
     public void setData(RedditData data) {
         this.data = data;
     }
+    @JsonIgnore
     public List<RedditChildren> getPosts() {
         return data != null ? data.getChildren() : null;
     }
+    @JsonIgnore
     public List<RedditResponse> getRedditResponses() {
         if (data != null && data.getChildren() != null) {
             return data.getChildren().stream()
