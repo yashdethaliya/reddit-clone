@@ -13,6 +13,6 @@ public interface RedditClient {
     @Path("/{username}/submitted")
     public String getPostsByUser(@PathParam("username") String username,
                                              @QueryParam("limit") int limit,
-
+                                             @QueryParam("after") String after,
                                              @HeaderParam("Authorization") String authHeader);
 }
