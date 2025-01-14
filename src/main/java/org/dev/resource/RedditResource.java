@@ -1,36 +1,35 @@
 package org.dev.resource;
-
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.api.trace.Tracer;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Request;
 import org.dev.Client.RedditClient;
 import org.dev.Entity.*;
 import org.dev.Kafka.KafkaPostProducer;
-import org.dev.OpenSeacrh.OpenSearchClient;
 import org.dev.OpenSeacrh.OpenSearchsearchservice;
+import org.dev.mongo.MongoDBService;
 import org.dev.servicelayer.RedditService;
 import org.dev.tokengenerator.Tokengenerator;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 @Path("/")
 public class RedditResource {
+    private static final Tracer tracer = GlobalOpenTelemetry.getTracer("reddit-api-service");
 
     @Inject
     KafkaPostProducer kafkaPostProducer;
     @Inject
             @RestClient
     RedditClient redditClient;
+    @Inject
+    MongoDBService mongoDBService;
     @Inject
     OpenSearchsearchservice openSearchClient;
     @Inject
@@ -42,35 +41,55 @@ public class RedditResource {
     @Produces(MediaType.APPLICATION_JSON)
     public CompletableFuture<RedditPostresponse> getPostbyAuthorName(@PathParam("username") String username, @QueryParam("limit") int limit)
     {
-        return CompletableFuture.supplyAsync(() -> {
-            String token = "Bearer " + tokenfetch.getToken();
-            String after = null;
-            RedditPostresponse allPosts = new RedditPostresponse();
-            RedditData allData = new RedditData();
-            allPosts.setKind("Listing");
-            int curnumofpost=0;
-            do {
-                String res = redditClient.getPostsByUser(username, limit, after, token);
-
-                RedditPostresponse response = redditService.parseRedditResponse(res);
-
-                if (response.getData() != null) {
-                    int postsToAdd = response.getData().getChildren().size();
-                    if (curnumofpost + postsToAdd > limit) {
-                        // If adding would exceed the limit, only add the remaining posts to reach the limit
-                        postsToAdd = limit - curnumofpost;
+        var parentSpan = tracer.spanBuilder("fetch-posts-api").startSpan();
+        try {
+            Set<String> existingURLs = mongoDBService.getexistingURLs(username);
+            return CompletableFuture.supplyAsync(() -> {
+                String token = "Bearer " + tokenfetch.getToken();
+                String after = null;
+                RedditPostresponse allPosts = new RedditPostresponse();
+                RedditData allData = new RedditData();
+                allPosts.setKind("Listing");
+                String res="";
+                int curnumofpost = 0;
+                do {
+                    var childSpan=tracer.spanBuilder("Call Reddit fetch API to fetch the posts").startSpan();
+                    try {
+                        res = redditClient.getPostsByUser(username, limit, after, token);
                     }
-                    allData.getChildren().addAll(response.getData().getChildren().subList(0,postsToAdd));
-                    curnumofpost += postsToAdd;
-                    if(curnumofpost>limit)break;
-                }
-                after = response.getData().getAfter();
-            } while (after != null && curnumofpost<=limit);
-            allPosts.setData(allData);
-            kafkaPostProducer.sendPostsToKafka(allPosts);
-            return allPosts;
+                    finally {
+                        childSpan.end();
+                    }
 
-        });
+                    RedditPostresponse response = redditService.parseRedditResponse(res);
+
+                    if (response.getData() != null) {
+                        List<RedditChildren> children = response.getData().getChildren();
+                        List<RedditChildren> newPosts = new ArrayList<>();
+                        for (RedditChildren child : children) {
+                            String url = child.getData().getUrl();
+                            if (!existingURLs.contains(url)) {
+                                newPosts.add(child);
+                                existingURLs.add(url);
+                            }
+                            if (newPosts.size() + curnumofpost >= limit) {
+                                break;
+                            }
+                        }
+                        allData.getChildren().addAll(newPosts);
+                        curnumofpost += newPosts.size();
+                        if (curnumofpost > limit) break;
+                    }
+                    after = response.getData().getAfter();
+                } while (after != null && curnumofpost < limit);
+                allPosts.setData(allData);
+                kafkaPostProducer.sendPostsToKafka(allPosts);
+                return allPosts;
+            });
+        }
+        finally {
+            parentSpan.end();
+        }
     }
 
     @GET
@@ -116,6 +135,11 @@ public class RedditResource {
         }
 
     }
-
+    @GET
+    @Path("trending-users")
+    public List<TrendingUser> findtrendinguser()
+    {
+        return mongoDBService.finetredingusers();
+    }
 
 }
