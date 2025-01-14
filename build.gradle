@@ -23,6 +23,7 @@ dependencies {
             }
     implementation "io.quarkus:quarkus-smallrye-openapi"
     implementation 'org.eclipse.microprofile.rest.client:microprofile-rest-client-api:2.0'
+    implementation 'io.quarkus:quarkus-opentelemetry'
     testImplementation 'io.quarkus:quarkus-junit5'
     testImplementation 'io.rest-assured:rest-assured'
 }
