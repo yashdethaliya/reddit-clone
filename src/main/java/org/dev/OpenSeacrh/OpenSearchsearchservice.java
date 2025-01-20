@@ -1,5 +1,9 @@
 package org.dev.OpenSeacrh;
 
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.http.HttpHost;
@@ -19,26 +23,30 @@ import java.util.Objects;
 public class OpenSearchsearchservice {
 
     private final RestClient restClient;
+    private static final Tracer tracer = GlobalOpenTelemetry.getTracer("reddit-service");
 
     public OpenSearchsearchservice() {
         RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200, "http"));
         this.restClient = builder.build();
     }
-    public String searchbykeyword(String index, String keyword, String value,int limit) throws IOException {
-        String endpoint = "/" + index + "/_search";
-        String query = "{ \"query\": { \"match\": { \"" + keyword + "\": \"" + value + "\" } }, \"size\": " + limit + " }";
+    public String searchbykeyword(String index, String keyword, String value, int limit, Context ParentContext) throws IOException {
+        var opensearchspan = tracer.spanBuilder("Search-posts-from-opensearch").startSpan();
+        try(Scope opensearchscope=ParentContext.with(opensearchspan).makeCurrent()) {
+            String endpoint = "/" + index + "/_search";
+            String query = "{ \"query\": { \"match\": { \"" + keyword + "\": \"" + value + "\" } }, \"size\": " + limit + " }";
 
+            Request request = new Request("POST", endpoint);
+            request.setJsonEntity(query);
 
-        Request request = new Request("POST", endpoint);
-        request.setJsonEntity(query);
-
-        Response response = restClient.performRequest(request);
-        if(response.getStatusLine().getStatusCode()==404)
-        {
-            return "Index not Found";
+            Response response = restClient.performRequest(request);
+            if (response.getStatusLine().getStatusCode() == 404) {
+                return "Index not Found";
+            } else {
+                return EntityUtils.toString(response.getEntity());
+            }
         }
-        else {
-            return EntityUtils.toString(response.getEntity());
+        finally {
+            opensearchspan.end();
         }
     }
 
