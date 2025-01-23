@@ -5,9 +5,11 @@ import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
+import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
+import org.apache.http.HttpHost;
 import org.bson.Document;
 import org.dev.Client.RedditClient;
 import org.dev.Entity.*;
@@ -16,7 +18,10 @@ import org.dev.OpenSeacrh.OpenSearchsearchservice;
 import org.dev.mongo.MongoDBService;
 import org.dev.servicelayer.RedditService;
 import org.dev.tokengenerator.Tokengenerator;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.opensearch.client.RestClientBuilder;
+import org.opensearch.client.RestHighLevelClient;
 
 import java.io.IOException;
 import java.util.*;
@@ -24,8 +29,9 @@ import java.util.concurrent.CompletableFuture;
 
 @Path("/")
 public class RedditResource {
-    private static final Tracer tracer = GlobalOpenTelemetry.getTracer("reddit-service");
-
+    @ConfigProperty(name="telemetry.name")
+    String telemetryName;
+    private Tracer tracer;
     @Inject
     KafkaPostProducer kafkaPostProducer;
     @Inject
@@ -39,6 +45,10 @@ public class RedditResource {
     RedditService redditService;
     @Inject
     Tokengenerator tokenfetch;
+    @PostConstruct
+    void init() {
+        tracer = GlobalOpenTelemetry.getTracer(telemetryName);
+    }
     @GET
     @Path("author-posts-api/{username}")
     @Produces(MediaType.APPLICATION_JSON)
@@ -97,7 +107,7 @@ public class RedditResource {
                     } while (after != null && curnumofpost < limit);
                     if(allData.getChildren().isEmpty())
                     {
-                        List<Document> postsdata=mongoDBService.getpostsfromdb(limit);
+                        List<RedditResponse> postsdata=mongoDBService.getpostsfromdb(limit);
                         allData= redditService.maptoredditposts(postsdata);
                     }
                     allPosts.setData(allData);

@@ -1,15 +1,18 @@
 package org.dev.Kafka;
 
 
+import com.mongodb.client.MongoClients;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapSetter;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.dev.Entity.RedditChildren;
 import org.dev.Entity.RedditPostresponse;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import io.opentelemetry.context.Context;
@@ -20,7 +23,9 @@ import java.util.Map;
 
 @ApplicationScoped
 public class KafkaPostProducer {
-    private static final Tracer tracer = GlobalOpenTelemetry.getTracer("reddit-service");
+    @ConfigProperty(name="telemetry.name")
+    String telemetryName;
+    private Tracer tracer;
     @Channel("reddit-posts")
     private Emitter<String> emitter;
     private static final TextMapSetter<Map<String, String>> TEXT_MAP_SETTER = (carrier, key, value) -> {
@@ -28,6 +33,11 @@ public class KafkaPostProducer {
             carrier.put(key, value);
         }
     };
+    @PostConstruct
+    void init() {
+        tracer = GlobalOpenTelemetry.getTracer(telemetryName);
+
+    }
     public void sendPostsToKafka(RedditPostresponse response,Context parentcontext) {
         Span kafkachildproducerspan=tracer.spanBuilder("Message received to Kafka Producer")
                 .setAttribute("Response from API", String.valueOf(response))

@@ -2,26 +2,31 @@ package org.dev.Entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.bson.codecs.pojo.annotations.BsonProperty;
 
 @JsonIgnoreProperties(ignoreUnknown = true) // Ignore extra fields
 public class RedditResponse {
+    @BsonProperty("title")
     private String title;
+    @BsonProperty("url")
     private String url;
+    @BsonProperty("author")
     private String author;
+    @BsonProperty("score")
     private int score;
-
+    @BsonProperty("created_utc")
     @JsonProperty("created_utc")
     private long createdUtc;
-
+    @BsonProperty("author_fullname")
     @JsonProperty("author_fullname")
     private String authorFullname;  // Added field
-
+    @BsonProperty("subreddit")
     @JsonProperty("subreddit")
     private String subreddit;  // Added field
-
+    @BsonProperty("selftext")
     @JsonProperty("selftext")
     private String selftext;  // Added field
-
+    @BsonProperty("thumbnail")
     @JsonProperty("thumbnail")
     private String thumbnail;  // Added field
 

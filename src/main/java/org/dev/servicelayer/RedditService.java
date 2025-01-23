@@ -22,24 +22,24 @@ public class RedditService{
             throw new RuntimeException("Failed to parse Reddit API response", e);
         }
     }
-    public RedditData maptoredditposts(List<Document> Documents)
+    public RedditData maptoredditposts(List<RedditResponse> Documents)
     {
         RedditData data = new RedditData();
         List<RedditChildren> children = new ArrayList<>();
 
-        for (Document doc : Documents) {
+        for (RedditResponse doc : Documents) {
             RedditChildren child = new RedditChildren();
 
             RedditResponse response = new RedditResponse();
-            response.setTitle(doc.getString("title"));
-            response.setUrl(doc.getString("url"));
-            response.setAuthor(doc.getString("author"));
-            response.setScore(doc.getInteger("score", 0));
-            response.setCreatedUtc(doc.getInteger("created_utc"));
-            response.setAuthorFullname(doc.getString("author_fullname"));
-            response.setSubreddit(doc.getString("subreddit"));
-            response.setSelftext(doc.getString("selftext"));
-            response.setThumbnail(doc.getString("thumbnail"));
+            response.setTitle(doc.getTitle());
+            response.setUrl(doc.getUrl());
+            response.setAuthor(doc.getAuthor());
+            response.setScore(doc.getScore());
+            response.setCreatedUtc(doc.getCreatedUtc());
+            response.setAuthorFullname(doc.getAuthorFullname());
+            response.setSubreddit(doc.getSubreddit());
+            response.setSelftext(doc.getSelftext());
+            response.setThumbnail(doc.getThumbnail());
 
             child.setData(response);
             children.add(child);

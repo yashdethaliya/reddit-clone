@@ -9,25 +9,25 @@ import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.core.Form;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.Base64;
 
 @ApplicationScoped
 public class Tokengenerator {
-    private static final String CLIENT_ID = "qmdyN9DJQp2e0Bj-NQhQqQ";
-    private static final String CLIENT_SECRET = "_HjYgPslXe6behRB0AaPa35W7RBP8g";
+    @ConfigProperty(name="app.client.id")
+    public String CLIENT_ID;
+    @ConfigProperty(name="app.client.secret")
+    public String CLIENT_SECRET;
     private static String accessToken = null;
 
     private String fetchAccessToken() {
-        // If we already have a token, no need to fetch again.
         if (accessToken != null) {
             return accessToken;
         }
 
         String credentials = CLIENT_ID + ":" + CLIENT_SECRET;
         String tokenEndpoint = "https://www.reddit.com/api/v1/access_token";
-
-        // Creating HTTP client to fetch the token
         Client client = ClientBuilder.newClient();
         Response response = client.target(tokenEndpoint)
                 .request()

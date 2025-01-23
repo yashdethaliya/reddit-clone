@@ -5,10 +5,15 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.apache.http.HttpHost;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.client.RequestOptions;
+import org.opensearch.client.RestClient;
+import org.opensearch.client.RestClientBuilder;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.client.indices.CreateIndexRequest;
 import org.opensearch.client.indices.CreateIndexResponse;
@@ -19,19 +24,27 @@ import java.util.HashMap;
 
 @ApplicationScoped
 public class OpenSearchIndexservice {
-    private static final Tracer tracer = GlobalOpenTelemetry.getTracer("reddit-service");
+    @ConfigProperty(name="telemetry.name")
+    String telemetryName;
+    private Tracer tracer;
     @Inject
     OpenSearchClient openSearchClient;
+    @ConfigProperty(name="opensearch.index")
+    public String indexname;
+    @PostConstruct
+    void init() {
+        tracer = GlobalOpenTelemetry.getTracer(telemetryName);
+    }
     public void indexDataIntoOpenSearch(String jsonPost, Context Parentcontext) {
         Span Opensearchspan=tracer.spanBuilder("Message received to Opensearch to perform indexing")
                 .startSpan();
         try(Scope Opensearchscope=Parentcontext.with(Opensearchspan).makeCurrent()) {
             RestHighLevelClient client = openSearchClient.getClient();
             try {
-                GetIndexRequest getIndexRequest = new GetIndexRequest("reddit-posts-index");
+                GetIndexRequest getIndexRequest = new GetIndexRequest(indexname);
                 boolean exists = client.indices().exists(getIndexRequest, RequestOptions.DEFAULT);
                 if (!exists) {
-                    CreateIndexRequest createIndexRequest = new CreateIndexRequest("reddit-posts-index");
+                    CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexname);
                     HashMap<String, Object> properties = new HashMap<>();
                     HashMap<String, String> authormapping = new HashMap<String, String>();
                     authormapping.put("type", "text");
@@ -65,9 +78,8 @@ public class OpenSearchIndexservice {
                     createIndexRequest.mapping(mappings);
 
                     CreateIndexResponse createIndexResponse = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
-                    System.out.println(createIndexResponse);
                 }
-                IndexRequest request = new IndexRequest("reddit-posts-index")
+                IndexRequest request = new IndexRequest(indexname)
                         .source(jsonPost, XContentType.JSON);
                 client.index(request, RequestOptions.DEFAULT);
             } catch (Exception e) {
