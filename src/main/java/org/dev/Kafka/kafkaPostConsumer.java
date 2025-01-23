@@ -1,7 +1,5 @@
 package org.dev.Kafka;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mongodb.client.MongoClients;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
@@ -10,7 +8,6 @@ import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
-import org.dev.Entity.RedditResponse;
 import org.dev.OpenSeacrh.OpenSearchIndexservice;
 import org.dev.mongo.MongoDBService;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -54,7 +51,6 @@ public class kafkaPostConsumer {
                     .startSpan();
             Context kafkaChildConsumerspanContext = Context.current().with(kafkaChildConsumerSpan);
             try(Scope kafkaconsumerscope=parentContext.with(kafkaChildConsumerSpan).makeCurrent()) {
-//                RedditResponse postData = new ObjectMapper().readValue(message, RedditResponse.class);
                 mongoDBService.savePostData(message,kafkaChildConsumerspanContext);
                 openSearchIndexservice.indexDataIntoOpenSearch(message,kafkaChildConsumerspanContext);
             }

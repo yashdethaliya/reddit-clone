@@ -26,9 +26,13 @@ import org.opensearch.client.RestHighLevelClient;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Path("/")
 public class RedditResource {
+
+    private final ConcurrentHashMap<String, Integer> userPageMap = new ConcurrentHashMap<>();
+    private static final int PAGE_SIZE = 10;
     @ConfigProperty(name="telemetry.name")
     String telemetryName;
     private Tracer tracer;
@@ -123,11 +127,16 @@ public class RedditResource {
 
     @GET
     @Path("posts-by-keyword/{keyval}")
-    public List<RedditResponseWrapper> getPostbyKeywords(@PathParam("keyval") String keyval,@QueryParam("value") String value,@QueryParam("limit") int limit) throws IOException {
+    public List<RedditResponseWrapper> getPostbyKeywords(@PathParam("keyval") String keyval,@QueryParam("value") String value) throws IOException {
         var parentSpan = tracer.spanBuilder("Search-posts").startSpan();
         Context parentcontext = Context.current().with(parentSpan);
         try(Scope parentScope = parentcontext.makeCurrent()) {
-            String res = openSearchClient.searchbykeyword("reddit-posts-index", keyval, value, limit,parentcontext);
+            String userKey = "default_user";
+            int currentPage = userPageMap.getOrDefault(userKey, 1);
+            int offset = (currentPage - 1) * PAGE_SIZE;
+            String res = openSearchClient.searchbykeyword("reddit-posts-index", keyval, value, offset, PAGE_SIZE,parentcontext);
+            userPageMap.put(userKey, currentPage + 1);
+
             if (!res.contains("Index Not Found")) {
                 ObjectMapper objectMapper = new ObjectMapper();
                 JsonNode rootNode = objectMapper.readTree(res);

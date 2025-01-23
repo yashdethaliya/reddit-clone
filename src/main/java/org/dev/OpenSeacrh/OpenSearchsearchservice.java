@@ -34,11 +34,19 @@ public class OpenSearchsearchservice {
         this.restClient = builder.build();
         tracer = GlobalOpenTelemetry.getTracer(telemetryName);
     }
-    public String searchbykeyword(String index, String keyword, String value, int limit, Context ParentContext) throws IOException {
+    public String searchbykeyword(String index, String keyword, String value, int offset,int PAGE_SIZE, Context ParentContext) throws IOException {
         var opensearchspan = tracer.spanBuilder("Search-posts-from-opensearch").startSpan();
         try(Scope opensearchscope=ParentContext.with(opensearchspan).makeCurrent()) {
             String endpoint = "/" + index + "/_search";
-            String query = "{ \"query\": { \"match\": { \"" + keyword + "\": \"" + value + "\" } }, \"size\": " + limit + " }";
+            String query = "{\n" +
+                    "  \"query\": {\n" +
+                    "    \"match\": {\n" +
+                    "      \"" + keyword + "\": \"" + value + "\"\n" +
+                    "    }\n" +
+                    "  },\n" +
+                    "  \"from\": " + offset + ",\n" +
+                    "  \"size\": " + PAGE_SIZE + "\n" +
+                    "}";
 
             Request request = new Request("POST", endpoint);
             request.setJsonEntity(query);
